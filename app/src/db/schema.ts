@@ -1,6 +1,10 @@
 import { relations } from 'drizzle-orm';
 import * as t from "drizzle-orm/sqlite-core"
 
+// =============================================
+// Common Columns & Base Schema
+// =============================================
+
 const timestamps = {
     createdAt: t.int('created_at', { mode: 'timestamp_ms' }).notNull().$defaultFn(() => new Date()),
     updatedAt: t.int('updated_at', { mode: 'timestamp_ms' }).notNull().$onUpdateFn(() => new Date()),
@@ -8,14 +12,18 @@ const timestamps = {
 };
 
 const baseColumns = {
-    id: t.int().primaryKey({ autoIncrement: true }),
+    id: t.int('id').primaryKey({ autoIncrement: true }),
     ...timestamps
 };
 
+// =============================================
+// Table Definitions
+// =============================================
+
 export const users = t.sqliteTable("users", {
     ...baseColumns,
-    role: t.text({enum: ['student', 'teacher', 'admin']}).notNull(),
-    username: t.text().notNull().unique(),
+    role: t.text('role', {enum: ['student', 'teacher', 'admin']}).notNull(),
+    username: t.text('username').notNull().unique(),
     passwordHash: t.text('password_hash').notNull(),
     realName: t.text('real_name').notNull(),
     lastLogin: t.int('last_login', {mode: 'timestamp_ms'}),
@@ -24,17 +32,21 @@ export const users = t.sqliteTable("users", {
 
 export const courses = t.sqliteTable("courses", {
     ...baseColumns,
-    name: t.text().notNull(),
+    name: t.text('name').notNull(),
     teacherId: t.int('teacher_id').notNull().references(() => users.id),
 });
 
-export const usersToCourses = t.sqliteTable("users_to_courses", { // 学生选课表
+// Junction table for students enrolled in courses
+export const usersToCourses = t.sqliteTable("users_to_courses", {
     userId: t.int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
     courseId: t.int('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
     ...timestamps
-}, (table) => [
+}, (table) => ([
     t.primaryKey({ columns: [table.userId, table.courseId] })
-]);
+]));
+
+
+// --- Question Related Tables ---
 
 export type ChoiceQuestionData = {
     options: {
@@ -42,7 +54,7 @@ export type ChoiceQuestionData = {
         content: string;
         explanation?: string;
     }[];
-    answer: number[] | number; // 单选为单个数字，多选为数字数组
+    answer: number[] | number; // Single number for single choice, array for multiple choice
 };
 
 export type TrueFalseQuestionData = {
@@ -50,7 +62,7 @@ export type TrueFalseQuestionData = {
 };
 
 export type FillInTheBlankQuestionData = {
-    answer: string[]; // 答案可以是多个填空
+    answer: string[]; // Can have multiple blanks
 };
 
 export type EssayQuestionData = {
@@ -68,137 +80,225 @@ export type QuestionData = ChoiceQuestionData | TrueFalseQuestionData | FillInTh
 
 export const questions = t.sqliteTable("questions", {
     ...baseColumns,
-    globalId: t.text('global_id'), // 在线题库id，允许为空，表示本地题目
-    globalAuthorId: t.text('global_author_id'), // 在线题库作者id，允许为空，表示本地题目
+    globalId: t.text('global_id'), // Optional ID from an online question bank
+    globalAuthorId: t.text('global_author_id'), // Optional author ID from an online bank
     authorId: t.int('author_id').notNull().references(() => users.id),
     forkFrom: t.int('fork_from'),
-    content: t.text().notNull(),
-    type: t.text({enum: ['single-choice', 'multiple-choice', 'true-false', 'fill-in-the-blank', 'essay', 'program-judge']}).notNull(),
-    data: t.text({mode: 'json'}).$type<QuestionData>().notNull(), // 题目数据，JSON 格式
-    explanation: t.text(), // 题目解析
-    difficulty: t.int().notNull().default(1), // 题目难度，1-5
-    tags: t.text({mode: 'json'}).$type<string[]>().default([]),
-}, (table) => [
+    content: t.text('content').notNull(),
+    type: t.text('type', {enum: ['single-choice', 'multiple-choice', 'true-false', 'fill-in-the-blank', 'essay', 'program-judge']}).notNull(),
+    data: t.text('data', {mode: 'json'}).$type<QuestionData>().notNull(),
+    explanation: t.text('explanation'),
+    difficulty: t.int('difficulty').notNull().default(1), // Difficulty from 1-5
+    tags: t.text('tags', {mode: 'json'}).$type<string[]>().default([]),
+}, (table) => ([
     t.foreignKey({
         columns: [table.forkFrom],
         foreignColumns: [table.id],
-    }).onDelete("set null"),
-]);
+    }).onDelete("set null")
+]));
 
-export const questionsCollections = t.sqliteTable("questions_collections", { // 可以是老师用来管理题目的集合，也可以是学生用来收藏题目的集合，或错题本
+// A collection of questions (e.g., for a quiz, study guide, or student's saved questions)
+export const questionsCollections = t.sqliteTable("questions_collections", {
     ...baseColumns,
     userId: t.int('user_id').notNull().references(() => users.id),
-    name: t.text().notNull(),
-    description: t.text(),
-    tags: t.text({mode: 'json'}).$type<string[]>().default([]),
+    name: t.text('name').notNull(),
+    description: t.text('description'),
+    tags: t.text('tags', {mode: 'json'}).$type<string[]>().default([]),
 });
 
+// Junction table for questions within collections
 export const questionsToCollections = t.sqliteTable("questions_to_collections", {
-    questionId: t.int('question_id').notNull().references(() => questions.id),
-    collectionId: t.int('collection_id').notNull().references(() => questionsCollections.id),
-    score: t.int().default(1).$default(() => 1),
+    questionId: t.int('question_id').notNull().references(() => questions.id, { onDelete: 'cascade' }),
+    collectionId: t.int('collection_id').notNull().references(() => questionsCollections.id, { onDelete: 'cascade' }),
+    score: t.int('score').default(1).notNull(),
     orderIndex: t.int('order_index'),
     ...timestamps
-}, (table) => [
+}, (table) => ([
     t.primaryKey({ columns: [table.questionId, table.collectionId] })
-]);
+]));
+
+
+// --- Exam & Submission Related Tables ---
 
 export const examExercises = t.sqliteTable("exam_exercises", {
     ...baseColumns,
-    userId: t.int('user_id').notNull().references(() => users.id),
+    userId: t.int('user_id').notNull().references(() => users.id), // The author (teacher)
     courseId: t.int('course_id').notNull().references(() => courses.id),
     collectionId: t.int('collection_id').notNull().references(() => questionsCollections.id),
-    type: t.text({enum: ['practice', 'exam']}).notNull(),
-    title: t.text().notNull(),
-    description: t.text().notNull(),
-    tags: t.text({mode: 'json'}).$type<string[]>().default([]),
+    type: t.text('type', {enum: ['practice', 'exam']}).notNull(),
+    title: t.text('title').notNull(),
+    description: t.text('description').notNull(),
+    tags: t.text('tags', {mode: 'json'}).$type<string[]>().default([]),
     sortMode: t.text('sort_mode', {enum: ['fixed', 'random']}).notNull().default('fixed'),
     optionSortMode: t.text('option_sort_mode', {enum: ['fixed', 'random']}).notNull().default('fixed'),
     questionOrder: t.text('question_order', {mode: 'json'}).$type<number[]>().default([]),
     questionNum: t.int('question_num').notNull().default(1),
     startTime: t.int('start_time', { mode: 'timestamp_ms' }).notNull(),
     endTime: t.int('end_time', { mode: 'timestamp_ms' }).notNull(),
-    duration: t.int().notNull().default(0), // 持续时间，单位分钟，0表示不限时
-    minDuration: t.int('min_duration').notNull().default(0), // 最小持续时间，单位分钟
-    allowRetryNum: t.int('allow_retry_num').notNull().default(0), // 允许重试次数
-    passingScore: t.int('passing_score').notNull().default(60), // 及格分数
+    duration: t.int('duration').notNull().default(0), // Duration in minutes, 0 for unlimited
+    minDuration: t.int('min_duration').notNull().default(0), // Minimum duration in minutes
+    allowRetryNum: t.int('allow_retry_num').notNull().default(0),
+    passingScore: t.int('passing_score').notNull().default(60),
 });
 
 export const examExerciseSubmissions = t.sqliteTable("exam_exercise_submissions", {
     ...baseColumns,
     userId: t.int('user_id').notNull().references(() => users.id),
-    exerciseId: t.int('exercise_id').notNull().references(() => examExercises.id),
-    score: t.int().default(0),
+    exerciseId: t.int('exercise_id').notNull().references(() => examExercises.id, { onDelete: 'cascade' }),
+    score: t.int('score').default(0),
     isPassed: t.int('is_passed', {mode: 'boolean'}).notNull().default(false),
 });
 
 export const answerSubmissions = t.sqliteTable("answer_submissions", {
     ...baseColumns,
     userId: t.int('user_id').notNull().references(() => users.id),
-    submissionId: t.int('submission_id').notNull().references(() => examExerciseSubmissions.id),
+    submissionId: t.int('submission_id').notNull().references(() => examExerciseSubmissions.id, { onDelete: 'cascade' }),
     questionId: t.int('question_id').notNull().references(() => questions.id),
-    answer: t.text({ mode: 'json' }).$type<QuestionData['answer']>().notNull(),
+    answer: t.text('answer', { mode: 'json' }).$type<QuestionData['answer']>().notNull(),
     isCorrect: t.int('is_correct', {mode: 'boolean'}),
-    score: t.int(),
+    score: t.int('score'),
 });
 
+
+// =============================================
+// Relation Definitions
+// =============================================
+
 export const usersRelations = relations(users, ({ many }) => ({
-    usersToCourses: many(usersToCourses), // 学生上的课程
-    teachingCourses: many(courses), // 教师教授的课程
-    authorQuestions: many(questions), // 教师出过的题目
-    questionCollections: many(questionsCollections), // 拥有的题目集
-    authoredExams: many(examExercises), // 教师出过的考试
+    // A user can be enrolled in many courses (as a student)
+    usersToCourses: many(usersToCourses),
+    // A user can teach many courses (as a teacher)
+    teachingCourses: many(courses),
+    // A user can author many questions
+    authorQuestions: many(questions),
+    // A user can own many question collections
+    questionCollections: many(questionsCollections),
+    // A user can author many exams
+    authoredExams: many(examExercises),
+    // A user can have many exam submissions
+    examSubmissions: many(examExerciseSubmissions),
+    // A user can submit many individual answers
+    answerSubmissions: many(answerSubmissions),
 }));
 
 export const coursesRelations = relations(courses, ({ many, one }) => ({
-    usersToCourses: many(usersToCourses), // 选课的学生
-    teacher: one(users, { // 教师
+    // A course can have many students enrolled
+    usersToCourses: many(usersToCourses),
+    // A course has one teacher
+    teacher: one(users, {
         fields: [courses.teacherId],
         references: [users.id]
     }),
-    exams: many(examExercises), // 课程下的考试
+    // A course can have many exams
+    exams: many(examExercises),
 }));
 
 export const usersToCoursesRelations = relations(usersToCourses, ({ one }) => ({
-    user: one(users, { // 学生
+    // The user (student) in the enrollment record
+    user: one(users, {
         fields: [usersToCourses.userId],
         references: [users.id]
     }),
-    course: one(courses, { // 课程
+    // The course in the enrollment record
+    course: one(courses, {
         fields: [usersToCourses.courseId],
         references: [courses.id]
     })
 }));
 
 export const questionsRelations = relations(questions, ({ one, many }) => ({
-    author: one(users, { // 题目作者
+    // A question has one author
+    author: one(users, {
         fields: [questions.authorId],
         references: [users.id]
     }),
-    forkedQuestions: many(questions), // 被 fork 的题目
-    forkingQuestions: one(questions, { // fork 自哪个题目
+    // A question can be forked by many other questions
+    forkedQuestions: many(questions, { relationName: 'forked' }),
+    // A question can be a fork of one other question
+    forkingQuestion: one(questions, {
         fields: [questions.forkFrom],
-        references: [questions.id]
+        references: [questions.id],
+        relationName: 'forked'
     }),
-    questionsToCollections: many(questionsToCollections), // 题目所在的集合
+    // A question can belong to many collections
+    questionsToCollections: many(questionsToCollections),
 }));
 
 export const questionsCollectionsRelations = relations(questionsCollections, ({ one, many }) => ({
-    user: one(users, { // 拥有者
+    // A collection has one owner/user
+    user: one(users, {
         fields: [questionsCollections.userId],
         references: [users.id]
     }),
-    questionsToCollections: many(questionsToCollections), // 集合中的题目
-    exams: many(examExercises) // 根据该集合创建的考试
+    // A collection contains many questions
+    questionsToCollections: many(questionsToCollections),
+    // An exam can be created from this collection
+    exams: many(examExercises)
 }));
 
 export const questionsToCollectionsRelations = relations(questionsToCollections, ({ one }) => ({
-    question: one(questions, { // 题目
+    // The question in the collection
+    question: one(questions, {
         fields: [questionsToCollections.questionId],
         references: [questions.id]
     }),
-    collection: one(questionsCollections, { // 集合
+    // The collection the question belongs to
+    collection: one(questionsCollections, {
         fields: [questionsToCollections.collectionId],
         references: [questionsCollections.id]
     })
 }));
+
+export const examExercisesRelations = relations(examExercises, ({ one, many }) => ({
+    // The exam has one author (teacher)
+    author: one(users, {
+        fields: [examExercises.userId],
+        references: [users.id]
+    }),
+    // The exam belongs to one course
+    course: one(courses, {
+        fields: [examExercises.courseId],
+        references: [courses.id]
+    }),
+    // The exam is based on one question collection
+    collection: one(questionsCollections, {
+        fields: [examExercises.collectionId],
+        references: [questionsCollections.id]
+    }),
+    // The exam can have many student submissions
+    submissions: many(examExerciseSubmissions),
+}));
+
+export const examExerciseSubmissionsRelations = relations(examExerciseSubmissions, ({ one, many }) => ({
+    // The submission belongs to one user (student)
+    user: one(users, {
+        fields: [examExerciseSubmissions.userId],
+        references: [users.id]
+    }),
+    // The submission is for one specific exam/exercise
+    exercise: one(examExercises, {
+        fields: [examExerciseSubmissions.exerciseId],
+        references: [examExercises.id]
+    }),
+    // A submission contains many individual answers
+    answers: many(answerSubmissions),
+}));
+
+export const answerSubmissionsRelations = relations(answerSubmissions, ({ one }) => ({
+    // The answer was submitted by one user (student)
+    user: one(users, {
+        fields: [answerSubmissions.userId],
+        references: [users.id]
+    }),
+    // The answer is part of a larger exam submission
+    submission: one(examExerciseSubmissions, {
+        fields: [answerSubmissions.submissionId],
+        references: [examExerciseSubmissions.id]
+    }),
+    // The answer is for one specific question
+    question: one(questions, {
+        fields: [answerSubmissions.questionId],
+        references: [questions.id]
+    })
+}));
+
