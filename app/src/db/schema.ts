@@ -304,3 +304,16 @@ export const answerSubmissionsRelations = relations(answerSubmissions, ({ one })
     })
 }));
 
+export const table = {
+    users,
+    courses,
+    usersToCourses,
+    questions,
+    questionsCollections,
+    questionsToCollections,
+    examExercises,
+    examExerciseSubmissions,
+    answerSubmissions,
+} as const
+
+export type Table = typeof table
