@@ -222,6 +222,8 @@ export const questionsRelations = relations(questions, ({ one, many }) => ({
     }),
     // A question can belong to many collections
     questionsToCollections: many(questionsToCollections),
+    // A question can have many answer submissions
+    answerSubmissions: many(answerSubmissions),
 }));
 
 export const questionsCollectionsRelations = relations(questionsCollections, ({ one, many }) => ({
