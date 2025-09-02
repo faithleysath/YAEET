@@ -1,12 +1,12 @@
 import { Elysia } from 'elysia'
-import { authState } from './state'
+import { authModel } from './model'
 import { DB } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 
 export const auth = new Elysia({ prefix: '/auth' })
 		.use(DB)
-		.use(authState)
+		.use(authModel)
 		.post('/register', async ({ db, body, status }) => {
 			const existingUser = await db.query.users.findFirst({
 				where: eq(users.username, body.username)

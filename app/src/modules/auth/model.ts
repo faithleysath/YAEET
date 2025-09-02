@@ -12,7 +12,7 @@ const UserInfo = t.Pick(t.Object(db.select.users), [
     'lastLoginIp'
 ])
 
-export const authState = new Elysia({ name: "auth.state" })
+export const authModel = new Elysia({ name: "auth.model" })
     .model({
         'user.info': UserInfo,
         'auth.register': t.Object({
