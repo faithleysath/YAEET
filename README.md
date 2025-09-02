@@ -175,7 +175,8 @@ erDiagram
 2. 能够快速上手后端技术栈（bun、Elysia等），允许vibe coding（Elysia.js甚至提供了[llm.txt](https://elysiajs.com/llms-full.txt)）
 3. 有探索精神，愿意尝试新技术、新工具（Elysia.js是一个比较新的框架，存在bug）
 4. 与作者保持良好沟通，及时反馈进展与问题，任何大型更新都需要提前沟通（比如新增数据库表）
-5. 预算¥2000，无deadline，提供300刀额度的gemini 2.5 pro免费使用
+5. 作者会提供有限的技术支持，有不懂的可以和作者一同探讨，但是作者无暇提交代码
+6. 预算¥2000，无deadline，提供300刀额度的gemini 2.5 pro免费使用
 
 有意者请联系作者，微信号：wutayi
 
